@@ -46,7 +46,7 @@ serialPort.on('open', function() {
 });
 
 serialPort.on('data', function (data) {
-  console.log('Data:', data)
+  console.log('Data:', data.toString())
 })
 
 // open errors will be emitted as an error event
@@ -127,10 +127,28 @@ RobotPTDemo.prototype._createDeviceParams = function(deviceId, currentPositionVa
     transitionTime.writeFloatBE(transitionTimeValue);
     transitionTime = transitionTime.toString('base64');
 
+    // let groupId = Buffer.allocUnsafe(4);
+    // groupAction.writeFloatBE(1300);
+    // groupAction = groupAction.toString('base64');
+
     // A servo object list
     params = {
         deviceId: deviceId,
         objects: [{
+            objectId: 10315,
+            objectInstances: [{
+                objectInstanceId: 0,
+                resources: [{
+                    resourceId: 7,
+                    operations: OPERATIONS.EXECUTE,
+                    type: 'float'
+                }, {
+                    resourceId: 8,
+                    operations: OPERATIONS.EXECUTE,
+                    type: 'float'
+                }]
+            }]
+        }, {
             objectId: 3337,
             objectInstances: [{
                 objectInstanceId: 0,
@@ -278,7 +296,7 @@ RobotPTDemo.prototype.unregisterRobotDevice = async function(deviceId) {
 RobotPTDemo.prototype.exposeWriteMethod = function() {
     let self = this;
     self.client.expose('write', (params, response) => {
-        let value = new Buffer.from(params.value, 'base64').readDoubleBE();
+
         let resourcePath = params.uri.objectId + '/' + params.uri.objectInstanceId
             + '/' + params.uri.resourceId;
         let deviceId = params.uri.deviceId;
@@ -292,19 +310,32 @@ RobotPTDemo.prototype.exposeWriteMethod = function() {
             operation = 'unknown';
         }
 
-        received = {
-            deviceId: deviceId,
-            resourcePath: resourcePath,
-            operation: operation,
-            value: value
-        }
-        console.log(GREEN, 'Received a write method with data:');
-        console.log(received);
-        console.log(GREEN, 'The raw received JSONRPC 2.0 params:');
-        console.log(params);
-
         if (operation == 'write') {
-            self.ExecuteWriteOperation(resourcePath, value);
+            let value = new Buffer.from(params.value, 'base64').readDoubleBE();
+
+            received = {
+                deviceId: deviceId,
+                resourcePath: resourcePath,
+                operation: operation,
+                value: value
+            }
+            console.log(GREEN, 'Received a write method with data:');
+            console.log(received);
+            console.log(GREEN, 'The raw received JSONRPC 2.0 params:');
+            console.log(params);
+            self.WriteOperation(resourcePath, value);
+
+        } else if (operation == 'execute') {
+            let value = new Buffer.from(params.value, 'base64').toString();
+            console.log(GREEN, 'Received execute action with data:');
+            received = {
+                deviceId,
+                resourcePath,
+                operation,
+                value
+            }
+            console.log(received);
+            self.ExecuteOperation(resourcePath, value);
         }
 
 
@@ -315,25 +346,53 @@ RobotPTDemo.prototype.exposeWriteMethod = function() {
          */
         response(/* no error */ null, /* success */ 'ok');
     });
+
+
 };
 
-RobotPTDemo.prototype.ExecuteWriteOperation = async function (resourcePath, value) {
+RobotPTDemo.prototype.WriteOperation = async function (resourcePath, value) {
     objectId = resourcePath.split("/")[0]
-    servoId = resourcePath.split("/")[1];
+    instanceId = resourcePath.split("/")[1];
     resourceId = resourcePath.split("/")[2];
     if (objectId === '3337' && resourceId === '5536') {
-        serialCmd = "servo " + servoId + " " + value + " 1000"
+        serialCmd = "servo " + instanceId + " " + value + " 1000"
         console.log(GREEN, serialCmd);
         serialPort.write(serialCmd, function(err) {
             if (err) {
-              return console.log('Error on write: ', err.message);
+              return console.log(RED, 'Error on write to serial: ', err.message);
             }
-            console.log("Serial command " + serialCmd + " executed");
+            console.log(GREEN, "Serial command: <" + serialCmd + "> executed");
         });
     } else if (objectId === '3337' && resourceId === '5537') {
-        console.log(GREEN, "Servo " + servoId + " transition time changed successfully.");
+        console.log(GREEN, "Servo " + instanceId + " transition time changed successfully.");
     } else {
         console.log(RED, 'Will not hanlde the write');
+    }
+}
+
+RobotPTDemo.prototype.ExecuteOperation = async function (resourcePath, value) {
+    objectId = resourcePath.split("/")[0]
+    instanceId = resourcePath.split("/")[1];
+    resourceId = resourcePath.split("/")[2];
+    serialCmd = "";
+    
+    if (objectId === '10315' && instanceId === '0' && resourceId === '7') {
+        serialCmd = "group start " + value
+        
+    } else if (objectId === '10315' && instanceId === '0' && resourceId === '8') {
+        serialCmd = "group stop"
+    } else {
+        console.log(RED, 'Invalide, will not hanlde the execute.');
+    }
+
+    if (serialCmd.length > 0) {
+        console.log(GREEN, serialCmd);
+        serialPort.write(serialCmd, function(err) {
+            if (err) {
+              return console.log(RED, 'Error on write to serial: ', err.message);
+            }
+            console.log(GREEN, "Serial command: <" + serialCmd + "> executed");
+        });
     }
 }
 
@@ -376,7 +435,7 @@ const holdProgress = async (message) => {
         console.log(GREEN, 'Registered an example device. Response:', response);
 
         await holdProgress('Press any key to unregister the example device.');
-        response = await edge.unregisterRobotDevice('example-device-1');
+        response = await edge.unregisterRobotDevice('robot-arm-1');
         console.log(GREEN, 'Example device unregistered. Response:', response);
 
         console.log(GREEN, 'Kill the example with Ctrl+C');
