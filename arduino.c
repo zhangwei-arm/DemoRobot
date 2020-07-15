@@ -1,8 +1,12 @@
 #include <LobotServoController.h>
+#define COUNTER_BASED_FREQUENCY 500000
 
 LobotServoController myse(Serial1);
 int r = 1;
 String incoming = "";   // for incoming serial string data
+
+long counter = 0;
+
 
 void setup() {
   pinMode(13, OUTPUT);
@@ -138,12 +142,12 @@ void loop() {
         Serial.println("move servo: \n" + servoId + " " + servoPosition + " " + servoSpeed);
         Serial.flush();
 
+        // Optimization part. Adjust the speed according to the distance from current position.
+        // Here just use 1 seconds.
         if (servoIdInt == 2 || servoIdInt == 3 || servoIdInt == 4) {
-          myse.moveServo(servoIdInt + 1, servoPositionInt, 2000);
-          delay(3000);
+          myse.moveServo(servoIdInt + 1, servoPositionInt, 1000);
         } else {
           myse.moveServo(servoIdInt + 1, servoPositionInt, 1000);
-          delay(2000);
         }
       }
     }
@@ -152,27 +156,38 @@ void loop() {
       groupAction.trim();
 
       if (groupAction.equals("start")) {
-        String groupId = findTheNthWord(incoming, 2);
-        long groupIdInt = groupId.toInt();
-        myse.runActionGroup(groupIdInt, 1);  //run the action group once
-        Serial.println("Started the group action of: " + groupId);
-        Serial.flush();
-        delay(5000);
+        if (myse.isRunning) {
+          Serial.println("group action is running... try again later.");
+        } else {
+          String groupId = findTheNthWord(incoming, 2);
+          long groupIdInt = groupId.toInt();
+          myse.runActionGroup(groupIdInt, 1);  //run the action group once
+          Serial.println("Started the group action of: " + groupId);
+          Serial.flush();
+        }
       } else if (groupAction.equals("stop")) {
         myse.stopActionGroup();              //stop running the action group.
         Serial.println("Stopped the group action.");
         Serial.flush();
-        delay(2000);
       } else {
         Serial.println("Invalid group action command of: \n" + incoming);
         Serial.flush();
       }
     }     
     else {
-      //junk
       Serial.println("Invalid command of: \n" + incoming);
       Serial.flush();
       incoming = "";
     }
-  } 
+  } else {
+    counter += 1;
+    // This number should be adjusted according to the timeout settings of Serial port.
+    if (counter == COUNTER_BASED_FREQUENCY) {
+      myse.getBatteryVoltage();
+      Serial.println(myse.batteryVoltage);
+      Serial.println("#BL " + String(myse.batteryVoltage, DEC));
+      Serial.flush();
+      counter = 0;
+    }
+  }
 }

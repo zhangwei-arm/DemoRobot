@@ -46,7 +46,15 @@ serialPort.on('open', function() {
 });
 
 serialPort.on('data', function (data) {
-  console.log('Data:', data.toString())
+  var arduinoData = data.toString();
+  console.log('Arduino Data:', arduinoData)
+  if (arduinoData.startsWith("#BL ")) {
+    batteryLevel = arduinoData.split(' ')[1];
+    if (edgeInstance) {
+      console.log(GREEN, 'Updating Battery Level:' + batteryLevel)
+      edgeInstance.updateRobotBatteryLevel('robot-arm-1', batteryLevel);
+    }
+  }
 })
 
 // open errors will be emitted as an error event
@@ -432,9 +440,11 @@ const holdProgress = async (message) => {
 
         await holdProgress('Press any key to register the example device.');
         response = await edge.registerRobotDevice('robot-arm-1');
+        edgeInstance = edge;
         console.log(GREEN, 'Registered an example device. Response:', response);
 
-        await holdProgress('Press any key to unregister the example device.');
+        await holdProgress('Press any key to unregister the robot device.');
+        edgeInstance = null
         response = await edge.unregisterRobotDevice('robot-arm-1');
         console.log(GREEN, 'Example device unregistered. Response:', response);
 
