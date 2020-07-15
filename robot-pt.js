@@ -29,6 +29,7 @@ const YELLOW = '\x1b[33m[RobotPTDemo]\x1b[0m';
 
 // Timeout time in milliseconds
 const TIMEOUT = 10000;
+var edgeInstance;
 
 const OPERATIONS = {
     READ       : 0x01,
@@ -46,7 +47,15 @@ serialPort.on('open', function() {
 });
 
 serialPort.on('data', function (data) {
-  console.log('Data:', data.toString())
+  var arduinoData = data.toString();
+  console.log('Arduino Data:', arduinoData)
+  if (arduinoData.startsWith("#BL ")) {
+    batteryLevel = arduinoData.split[1];
+    if (edgeInstance) {
+      console.log(GREEN, 'Updating Battery Level:' + batteryLevel)
+      edgeInstance.updateRobotBatteryLevel('robot-arm-1', batteryLevel);
+    }
+  }
 })
 
 // open errors will be emitted as an error event
@@ -139,12 +148,16 @@ RobotPTDemo.prototype._createDeviceParams = function(deviceId, currentPositionVa
             objectInstances: [{
                 objectInstanceId: 0,
                 resources: [{
-                    resourceId: 7,
+                    resourceId: 7,  // Start action group.
                     operations: OPERATIONS.EXECUTE,
                     type: 'float'
                 }, {
-                    resourceId: 8,
+                    resourceId: 8,  // Stop action group.
                     operations: OPERATIONS.EXECUTE,
+                    type: 'float'
+                }, {
+                    resourceId: 51,  // Battery Level
+                    operations: OPERATIONS.READ,
                     type: 'float'
                 }]
             }]
@@ -242,6 +255,31 @@ RobotPTDemo.prototype._createDeviceParams = function(deviceId, currentPositionVa
                     operations: OPERATIONS.READ | OPERATIONS.WRITE,
                     type: 'float',
                     value: transitionTime
+                }]
+            }]
+        }]
+    };
+    return params;
+}
+
+RobotPTDemo.prototype._createBatteryLevelParam = function(deviceId, level) {
+    // Values are always Base64 encoded strings.
+    let batteryLevel = Buffer.allocUnsafe(4);;
+    batteryLevel.writeFloatBE(parseFloat(level))
+    batteryLevel = batteryLevel.toString('base64');
+
+    // An IPSO/LwM2M robot battery level sensor
+    params = {
+        deviceId: deviceId,
+        objects: [{
+            objectId: 10315,
+            objectInstances: [{
+                objectInstanceId: 0,
+                resources: [{
+                    resourceId: 51,
+                    operations: OPERATIONS.READ,
+                    type: 'float',
+                    value: batteryLevel
                 }]
             }]
         }]
@@ -396,6 +434,28 @@ RobotPTDemo.prototype.ExecuteOperation = async function (resourcePath, value) {
     }
 }
 
+RobotPTDemo.prototype.updateRobotBatteryLevel = async function(deviceId, batteryLevel) {
+    let self = this;
+    return new Promise((resolve, reject) => {
+
+        params = self._createBatteryLevelParam(deviceId, batteryLevel);
+
+        let timeout = setTimeout(() => {
+            reject('Timeout');
+        }, TIMEOUT);
+
+        self.client.send('write', params,
+            function(error, response) {
+                clearTimeout(timeout);
+                if (!error) {
+                    resolve(response);
+                } else {
+                    reject(error);
+                }
+            });
+    });
+}
+
 const holdProgress = async (message) => {
     process.stdin.setRawMode(true)
     console.log(YELLOW, util.format('\x1b[1m%s\x1b[0m', message));
@@ -408,6 +468,7 @@ const holdProgress = async (message) => {
 (async function() {
     try {
         edge = new RobotPTDemo();
+        edgeInstance = edge;
 
         // Set SIGINT handle
         let quitImmediately = false;
@@ -420,7 +481,7 @@ const holdProgress = async (message) => {
             process.exit(1);
         });
 
-        // For waiting user input for example progress
+        // For waiting user input for demo progress
         await holdProgress('Press any key to connect Edge.');
 
         await edge.connect();
@@ -430,11 +491,15 @@ const holdProgress = async (message) => {
         let response = await edge.registerProtocolTranslator();
         console.log(GREEN, 'Registered as protocol translator. Response:', response);
 
-        await holdProgress('Press any key to register the example device.');
+        await holdProgress('Press any key to register the robot device.');
         response = await edge.registerRobotDevice('robot-arm-1');
-        console.log(GREEN, 'Registered an example device. Response:', response);
+        console.log(GREEN, 'Registered an robot arm device. Response:', response);
 
-        await holdProgress('Press any key to unregister the example device.');
+        //await holdProgress('Press any key to update battery level value.');
+        //response = await edge.updateRobotBatteryLevel('robot-arm-1', 100);
+        //console.log(GREEN, 'Updated the resource values. Response:', response);
+
+        await holdProgress('Press any key to unregister the robot device.');
         response = await edge.unregisterRobotDevice('robot-arm-1');
         console.log(GREEN, 'Example device unregistered. Response:', response);
 
