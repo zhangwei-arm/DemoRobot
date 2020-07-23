@@ -7,16 +7,18 @@ It primarily shows the Pelion Edge’s protocol translator capabilities. The rob
 # LwM2M Object Mapping
 
 ## Single Servo Control
-Servo1 ---> /3337/0
-Servo2 ---> /3337/1
-Servo3 ---> /3337/2
-Servo4 ---> /3337/3
-Servo5 ---> /3337/4
-Servo6 ---> /3337/5
 
-For each servo, there are 2 resources - 
-/3337/0/5536 identifies the current position of servo #1;
-/3337/0/5537 identifies the transition time when the servo is to move to a new position;
+   Servo1 ---> /3337/0  
+   Servo2 ---> /3337/1  
+   Servo3 ---> /3337/2  
+   Servo4 ---> /3337/3  
+   Servo5 ---> /3337/4  
+   Servo6 ---> /3337/5  
+
+For each servo, there are 2 resources -   
+
+   /3337/0/5536 identifies the current position of servo #1;  
+   /3337/0/5537 identifies the transition time when the servo is to move to a new position;  
 
 ## Group Action of Servos
 The robot arm's control board supports execution of group actions, which is to move servos to target positions in a single command. I.E group action #1 moves several servos back and forth to complete a task of pick up an physical object and put it into a box. The specific position of servos and moving sequences are stored in the control board. A customized LwM2M object 10315 is defined to support this feature. /10315/0/7 is an executable resource that starts the execution of a group action that identified by an integer number. /10315/0/8 is an executable resource that stops the execution of current group action. 
