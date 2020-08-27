@@ -438,17 +438,17 @@ const holdProgress = async (message) => {
         let response = await edge.registerProtocolTranslator();
         console.log(GREEN, 'Registered as protocol translator. Response:', response);
 
-        await holdProgress('Press any key to register the example device.');
+        await holdProgress('Press any key to register the device.');
         response = await edge.registerRobotDevice('robot-arm-1');
         edgeInstance = edge;
-        console.log(GREEN, 'Registered an example device. Response:', response);
+        console.log(GREEN, 'Registered a robot device. Response:', response);
 
         await holdProgress('Press any key to unregister the robot device.');
         edgeInstance = null
         response = await edge.unregisterRobotDevice('robot-arm-1');
-        console.log(GREEN, 'Example device unregistered. Response:', response);
+        console.log(GREEN, 'Robot device unregistered. Response:', response);
 
-        console.log(GREEN, 'Kill the example with Ctrl+C');
+        console.log(GREEN, 'Kill the robot device with Ctrl+C');
     } catch (ex) {
         try {
             console.error(RED, 'Error...', ex);
